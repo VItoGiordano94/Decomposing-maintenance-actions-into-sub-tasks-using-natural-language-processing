@@ -1,0 +1,61 @@
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{python}
+import pandas as pd
+import spacy
+from spacy.matcher import Matcher
+
+# Import Maintenance Work Orders
+work_order = pd.read_excel (r'C:\Users\Vito Giordano\Desktop\Work Intervention and Failure Mode\Helping Maintenance Operators through Natural Language Processing\Data\Wip\work_order_processed.xlsx')
+
+# Inizializate Italian Model
+nlp = spacy.load("it_core_news_lg")
+
+
+def action_extractor( text ):
+    
+    # menage float value (when the string is null)
+    txt = str(text)
+    
+    # Process text
+    doc = nlp(txt)
+
+    # Define the mathcer
+    matcher = Matcher(nlp.vocab)
+
+    
+    # Add pattern to match the Action + Object in text
+    # Add pattern to match the Action + Object in text
+    pattern_action = [{"TEXT": {"REGEX":
+      "(\.*ito$)|(\.*ato$)|(\.*atto$)|(\.*ita$)|(\.*ata$)|(\.*atta$)|(\.*iti$)|(\.*ati$)|(\.*atti$)|(\.*ite$)|(\.*ate$)|(\.*atte$)|(spenta)|(riaccesa)|(spenta e riaccesa)|(spento)|(riacceso)|(spento e riacceso)|(spenti)|(riaccesi)|(spenti e riaccesi)|(spente)|(riaccese)|(spente e riaccese)|(\.*are)|(\.*ere)|(\.*ire)|(pulizia)|(ripristino)|(verifica)|(disattivazione)|(correzioni)|(misurazioni)|(rilevazione)|(rilevazioni)|(sostituzione)|(sostituzioni)|(regolazione)|(regolazioni)|(accensione)|(riaccensione)|(installazione)|(misurazione)|(reimpostazione)|(rimozione)|(rimozioni)|(riposizionamenti)|(spegnimento)|(riposizionamento)|(allineamento)|(caricamento)|(avviamento)|(posizionamento)|(riallineamento)|(riposizionamento)|(ricaricamento)|(svuotamento)|(azzeramento)"}}, # Take action 
+                      {'POS': "DET", "OP": "?"},
+                      {'POS': {'IN':['ADJ', 'NOUN','VERB']}},
+                      {'POS': "DET", "OP": "?"},
+                      {"POS": "NOUN", "OP": "*"}, 
+                      {"POS": "ADJ", "OP": "*"}, {"LEMMA": "di", "OP": "*"}, {"POS": {'IN':['ADJ','NOUN','DET']}, "OP": "*"}] # Take object
+
+    # Add the pattern to the matcher
+    matcher.add("action_object", [pattern_action], greedy = "LONGEST")
+
+    # Use the matcher on the doc
+    matches = matcher(doc)
+    
+     # Initialize action text
+    action = []
+    
+    # Extract the span
+    for match_id, start, end in matches:
+        span = doc[start:end]
+        action.append(span.text)
+    
+    return "; ".join(action)
+
+# Extract the part of maintencance work from text
+work_order['action_object'] = work_order.apply(lambda x: action_extractor(x['repair_action']), axis = 1)
+
+# Save results
+work_order.to_excel(r"C:\Users\Vito Giordano\Desktop\Work Intervention and Failure Mode\Helping Maintenance Operators through Natural Language Processing\Data\Wip\work_order_NER.xlsx")
+```

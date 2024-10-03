@@ -1,0 +1,228 @@
+---
+title: "Semantic Similarity"
+author: "Vito Giordano"
+date: "2024-07-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "C:/Users/Vito Giordano/Desktop/Work Intervention and Failure Mode/Helping Maintenance Operators through Natural Language Processing/")
+
+```
+
+
+Select the random sample to check.
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(tidystringdist)
+library(tidygraph)
+library(writexl)
+
+# Import Data -------------------------------------------------------------
+
+# Import action & object dataset
+interventi <- read_xlsx("Data/WIP/work_order_NER.xlsx")
+
+
+# Prepare Evaluation Test -------------------------------------------------
+
+# Action vector
+action_vec <- interventi %>% 
+  separate_rows(action_object, sep = "; ") %>% 
+  filter(!is.na(action_object)) %>% 
+  pull(action_object) %>% 
+  unique()
+
+# Prepare database of actions
+action <- tidy_comb_all(action_vec)
+
+# Extract vector of failure
+failure_vec <- interventi %>% 
+  filter(!is.na(failure)) %>% 
+  pull(failure) %>% 
+  unique()
+
+# Prepare database of failure
+failure <- tidy_comb_all(failure_vec)
+
+# Combine all dataset
+test_dataset_all <- bind_rows(
+  action %>% mutate(element = "action-object"),
+  failure %>% mutate(element = "failure"))
+
+# Save test_dataset to a CSV file
+write_csv(test_dataset_all, "Data/WIP/Similarity/Similarity Pair.csv")
+```
+
+Calculate Semantic similarity
+```{python}
+
+from sentence_transformers import SentenceTransformer, util
+import numpy as np
+import pandas as pd
+
+# Load the pre-trained multilingual models
+model1 = SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')
+model2 = SentenceTransformer('sentence-transformers/LaBSE')
+model3 = SentenceTransformer('nickprock/sentence-bert-base-italian-uncased')
+
+# Import list of pairs to compare with Semantic Similarity
+similarity_dataset = pd.read_csv('C:/Users/Vito Giordano/Desktop/Work Intervention and Failure Mode/Helping Maintenance Operators through Natural Language Processing/Data/WIP/Similarity/Similarity Pair.csv')
+
+
+# Create a dictionairy with all skills (list)
+element_list = list(set(similarity_dataset["V1"])) + list(set(similarity_dataset["V2"]))
+
+
+# Model1 ------------------------------------------
+
+# Create an empaty dictionairy
+dictionary = {}
+
+# counter
+i = 0
+
+for element in element_list:
+    
+    # encode element to get their embeddings
+    embedding1 = model1.encode(element, convert_to_tensor=True)
+
+    # save embeddings in a dictionairy
+    dictionary[element] = embedding1
+    
+    # count
+    i = i + 1
+    
+    print(i)
+
+# Create a empty list for saving semantic similarity results
+similarity_list = list()
+
+# Calculate the cosine similarity between each pairs
+for i in range(0, len(similarity_dataset["V1"])):
+    
+    # skills to compare
+    sentence1 = similarity_dataset['V1'][i]
+    sentence2 = similarity_dataset['V2'][i]
+
+    # compute similarity scores of two embeddings
+    similarity_list.append(util.pytorch_cos_sim(dictionary[sentence1], dictionary[sentence2]).item())
+    
+    print(i)
+    
+# Add semantic similarity to the dataset
+similarity_dataset["similarity_1"] = similarity_list
+
+# Model2 ------------------------------------------
+
+# Create an empaty dictionairy
+dictionary = {}
+
+# counter
+i = 0
+
+for element in element_list:
+    
+    # encode element to get their embeddings
+    embedding1 = model2.encode(element, convert_to_tensor=True)
+
+    # save embeddings in a dictionairy
+    dictionary[element] = embedding1
+    
+    # count
+    i = i + 1
+    
+    print(i)
+
+# Create a empty list for saving semantic similarity results
+similarity_list = list()
+
+# Calculate the cosine similarity between each pairs
+for i in range(0, len(similarity_dataset["V1"])):
+    
+    # skills to compare
+    sentence1 = similarity_dataset['V1'][i]
+    sentence2 = similarity_dataset['V2'][i]
+
+    # compute similarity scores of two embeddings
+    similarity_list.append(util.pytorch_cos_sim(dictionary[sentence1], dictionary[sentence2]).item())
+    
+    print(i)
+    
+# Add semantic similarity to the dataset
+similarity_dataset["similarity_2"] = similarity_list
+
+
+# Model3 ------------------------------------------
+
+# Create an empaty dictionairy
+dictionary = {}
+
+# counter
+i = 0
+
+for element in element_list:
+    
+    # encode element to get their embeddings
+    embedding1 = model3.encode(element, convert_to_tensor=True)
+
+    # save embeddings in a dictionairy
+    dictionary[element] = embedding1
+    
+    # count
+    i = i + 1
+    
+    print(i)
+
+# Create a empty list for saving semantic similarity results
+similarity_list = list()
+
+# Calculate the cosine similarity between each pairs
+for i in range(0, len(similarity_dataset["V1"])):
+    
+    # skills to compare
+    sentence1 = similarity_dataset['V1'][i]
+    sentence2 = similarity_dataset['V2'][i]
+
+    # compute similarity scores of two embeddings
+    similarity_list.append(util.pytorch_cos_sim(dictionary[sentence1], dictionary[sentence2]).item())
+    
+    print(i)
+    
+# Add semantic similarity to the dataset
+similarity_dataset["similarity_3"] = similarity_list
+
+# Save the results to a CSV file
+similarity_dataset.to_csv("C:/Users/Vito Giordano/Desktop/Work Intervention and Failure Mode/Helping Maintenance Operators through Natural Language Processing/Data/WIP/Similarity/Similarity Pair DONE.csv", index=False)
+
+```
+
+
+
+Asse the performance of Semantic Similarity
+```{r}
+library(tidyverse)
+library(readxl)
+library(writexl)
+
+# Load the dataset with all pair of similarity
+test_dataset_all <- read_csv("Data/WIP/Similarity/Similarity Pair DONE.csv")
+
+# Select a random sample of 20,000
+set.seed(seed = "212")
+
+test_dataset <- test_dataset_all %>% 
+  filter(str_detect(V1, "[a-z]") & str_detect(V2, "[a-z]")) %>% 
+  group_by(element) %>% 
+  sample_frac(0.10) %>% 
+  ungroup() %>% 
+  arrange(element, V1, V2)
+
+# Save dataset
+write_xlsx(test_dataset, "Data/WIP/Similarity/test_dataset_similarity_all.xlsx")
+
+```
+
